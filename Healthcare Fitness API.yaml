@@ -1,0 +1,220 @@
+$integration: http://ibm.com/appconnect/integration/v2/integrationFile
+integration:
+  type: api
+  trigger-interfaces:
+    trigger-interface-1:
+      triggers:
+        createBooking:
+          assembly:
+            $ref: '#/integration/assemblies/assembly-1'
+          input-context:
+            data: booking
+          output-context:
+            data: booking
+      options:
+        resources:
+          - business-object: booking
+            model:
+              $ref: '#/models/booking'
+            triggers:
+              create: createBooking
+      type: api-trigger
+  action-interfaces:
+    action-interface-1:
+      type: api-action
+      business-object: waitlist_find_model
+      connector-type: UDA.default.openapi.Fitness Class
+      account-name: Account 1
+      actions:
+        waitlist_find: {}
+    action-interface-2:
+      type: api-action
+      business-object: reservation_create_model
+      connector-type: UDA.default.openapi.Studio Reservation
+      account-name: Account 1
+      actions:
+        reservation_create: {}
+    action-interface-3:
+      type: api-action
+      business-object: booking_create_model
+      connector-type: UDA.default.openapi.Fitness Class
+      account-name: Account 1
+      actions:
+        booking_create: {}
+  assemblies:
+    assembly-1:
+      assembly:
+        execute:
+          - custom-action:
+              name: Fitness Class waitlist_find
+              target:
+                $ref: '#/integration/action-interfaces/action-interface-1'
+              action: waitlist_find
+              map:
+                mappings:
+                  - instructor:
+                      template: '{{$Request.instructor}}'
+                $map: http://ibm.com/appconnect/map/v1
+                input:
+                  - variable: Request
+                    $ref: '#/trigger/payload'
+                  - variable: flowDetails
+                    $ref: '#/flowDetails'
+          - for-each:
+              name: For each
+              assembly:
+                $ref: '#/integration/assemblies/assembly-2'
+              source:
+                expression: '$FitnessClasswaitlistfind.response."200" '
+                input:
+                  - variable: Request
+                    $ref: '#/trigger/payload'
+                  - variable: FitnessClasswaitlistfind
+                    $ref: '#/node-output/Fitness Class waitlist_find/response/payload'
+                  - variable: FitnessClasswaitlistfindMetadata
+                    $ref: '#/node-output/Fitness Class waitlist_find/response'
+                  - variable: flowDetails
+                    $ref: '#/flowDetails'
+              mode: sequential
+              continue-on-error: true
+              map:
+                $map: http://ibm.com/appconnect/map/v1
+                mappings: []
+              display-name: Fitness Class 200
+          - response:
+              name: response-1
+              reply-maps:
+                - title: booking successfully created
+                  status-code: 201
+                  map:
+                    $map: http://ibm.com/appconnect/map/v1
+                    input:
+                      - variable: Request
+                        $ref: '#/trigger/payload'
+                      - variable: flowDetails
+                        $ref: '#/flowDetails'
+                    mappings:
+                      - instructor:
+                          template: '{{$Request.instructor}}'
+                  input: []
+    assembly-2:
+      assembly:
+        execute:
+          - if:
+              name: If
+              input:
+                - variable: Foreachitem
+                  $ref: '#/block/For each/current-item'
+                - variable: Request
+                  $ref: '#/trigger/payload'
+                - variable: FitnessClasswaitlistfind
+                  $ref: '#/node-output/Fitness Class waitlist_find/response/payload'
+                - variable: FitnessClasswaitlistfindMetadata
+                  $ref: '#/node-output/Fitness Class waitlist_find/response'
+                - variable: flowDetails
+                  $ref: '#/flowDetails'
+              branch:
+                - condition:
+                    and:
+                      - '{{$contains($string($Request.style), $Foreachitem.style)}}':
+                          '=': 'true'
+                      - '{{$Foreachitem.city}}': '{{$Request.city}}'
+                  execute:
+                    - custom-action:
+                        name: Studio Reservation reservation_create
+                        target:
+                          $ref: '#/integration/action-interfaces/action-interface-2'
+                        action: reservation_create
+                        map:
+                          mappings:
+                            - data:
+                                mappings:
+                                  - city:
+                                      template: '{{$Foreachitem.city}}'
+                                  - date:
+                                      template: '{{$Foreachitem.date}}'
+                                  - instructorname:
+                                      template: '{{$Request.instructor}}'
+                                  - patientname:
+                                      template: '{{$Foreachitem.patientname}}'
+                                  - style:
+                                      template: '{{$Foreachitem.style}}'
+                          $map: http://ibm.com/appconnect/map/v1
+                          input:
+                            - variable: Foreachitem
+                              $ref: '#/block/For each/current-item'
+                            - variable: Request
+                              $ref: '#/trigger/payload'
+                            - variable: FitnessClasswaitlistfind
+                              $ref: >-
+                                #/node-output/Fitness Class
+                                waitlist_find/response/payload
+                            - variable: FitnessClasswaitlistfindMetadata
+                              $ref: >-
+                                #/node-output/Fitness Class
+                                waitlist_find/response
+                            - variable: flowDetails
+                              $ref: '#/flowDetails'
+              else:
+                execute:
+                  - custom-action:
+                      name: Fitness Class booking_create
+                      target:
+                        $ref: '#/integration/action-interfaces/action-interface-3'
+                      action: booking_create
+                      map:
+                        mappings:
+                          - data:
+                              mappings:
+                                - city:
+                                    template: '{{$Foreachitem.city}}'
+                                - date:
+                                    template: '{{$Foreachitem.date}}'
+                                - instructorname:
+                                    template: '{{$Request.instructor}}'
+                                - patientname:
+                                    template: '{{$Foreachitem.patientname}}'
+                                - style:
+                                    template: '{{$Foreachitem.style}}'
+                        $map: http://ibm.com/appconnect/map/v1
+                        input:
+                          - variable: Foreachitem
+                            $ref: '#/block/For each/current-item'
+                          - variable: Request
+                            $ref: '#/trigger/payload'
+                          - variable: FitnessClasswaitlistfind
+                            $ref: >-
+                              #/node-output/Fitness Class
+                              waitlist_find/response/payload
+                          - variable: FitnessClasswaitlistfindMetadata
+                            $ref: '#/node-output/Fitness Class waitlist_find/response'
+                          - variable: flowDetails
+                            $ref: '#/flowDetails'
+              output-schema: {}
+  name: Healthcare Fitness API
+models:
+  booking:
+    name: booking
+    properties:
+      instructor:
+        required: false
+        id: true
+        type: string
+      city:
+        required: false
+        id: false
+        type: string
+      style:
+        required: false
+        id: false
+        type:
+          - string
+      status:
+        required: false
+        id: false
+        type:
+          - string
+    plural: booking
+    description: ' '
+    operations:
+      create: '#/integration/assemblies/assembly-1'
